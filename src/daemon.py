@@ -2,13 +2,26 @@
 
 import sys, os, time, atexit, argparse
 
-from signal import SIGTERM
+import signal
+
+finalize = False;
+
+def signal_handler(signum, frame):
+    global finalize
+    if (signum == signal.SIGTERM or signum == signal.SIGINT or signum == signal.SIGQUIT):
+        finalize = True
+
+
 
 # Class that implements basic functions of a daemon program
 class Daemon:
 
     def __init__(self, pidfile):
         self.pidfile = pidfile
+
+    def can_run(self):
+        global finalize
+        return not finalize
 
     # create a subprocess and kill the father
     def daemonize(self):
@@ -27,6 +40,20 @@ class Daemon:
         atexit.register(self.delpid)
         pid = str(os.getpid())
         file(self.pidfile,'w+').write("%s\n" % pid)
+        self.assing_signal_handler()
+
+    def assing_signal_handler(self):
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGQUIT, signal_handler)
+        signal.signal(signal.SIGHUP, signal_handler)
+        signal.signal(signal.SIGUSR2, signal_handler)
+        signal.signal(signal.SIGCHLD, signal_handler)
+        signal.signal(signal.SIGBUS, signal_handler)
+        signal.signal(signal.SIGPIPE, signal_handler)
+        signal.signal(signal.SIGUSR1, signal_handler)
+        signal.signal(signal.SIGXFSZ, signal_handler)
+        signal.signal(signal.SIGALRM, signal_handler)
 
     def delpid(self):
         os.remove(self.pidfile)
@@ -70,9 +97,7 @@ class Daemon:
         sys.stdout.write('Stopping daemon...\n')
 
         try:
-            while 1:
-                os.kill(pid, SIGTERM)
-                time.sleep(0.1)
+            os.kill(pid, signal.SIGTERM)
         except OSError, err:
             err = str(err)
             if err.find("No such process") > 0:
@@ -89,8 +114,10 @@ class Daemon:
 
     # run logical of daemon
     def run(self, options):
-        # TODO create logical
-        print 'Do nothing'
+        while (self.can_run()):
+            # TODO create logical
+            print 'Do nothing'
+            time.sleep(options.time)
 
 
 if __name__ == "__main__":
